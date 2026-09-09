@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const OWNER_API = axios.create({
-  baseURL: 'http://localhost:5000'
+const API = axios.create({
+  baseURL: import.meta.env.VITE_API_URL
 });
 
 OWNER_API.interceptors.request.use(config => {
