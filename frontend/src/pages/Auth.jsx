@@ -71,16 +71,17 @@ const Auth = () => {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
-      await refreshCart();
-
       toast.success(response.data.message);
-
-      navigate('/products');
 
       setRegisterData({
         fullname: '',
         email: '',
         password: ''
+      });
+      navigate('/products');
+
+      refreshCart().catch(error => {
+        console.error('Cart refresh failed:', error);
       });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Registration failed');
@@ -114,8 +115,6 @@ const Auth = () => {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
-      await refreshCart();
-
       toast.success(response.data.message);
 
       setLoginData({
@@ -124,6 +123,10 @@ const Auth = () => {
       });
 
       navigate('/products');
+
+      refreshCart().catch(error => {
+        console.error('Cart refresh failed:', error);
+      });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login failed');
     }

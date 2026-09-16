@@ -1,4 +1,5 @@
 import { createContext, useEffect, useState } from 'react';
+
 import API from '../services/api';
 
 export const CartContext = createContext();
@@ -35,87 +36,165 @@ const CartProvider = ({ children }) => {
     fetchCart();
   }, []);
 
+  // ==========================================
+  // ADD TO CART - OPTIMISTIC
+  // ==========================================
   const addToCart = async (product, quantity = 1) => {
+    const previousCart = cart;
+
+    // UI FIRST - instantly update
+    setCart(currentCart => {
+      const existingItem = currentCart.find(item => item._id === product._id);
+
+      if (existingItem) {
+        return currentCart.map(item =>
+          item._id === product._id
+            ? {
+                ...item,
+                quantity: item.quantity + quantity
+              }
+            : item
+        );
+      }
+
+      return [
+        ...currentCart,
+        {
+          ...product,
+          quantity
+        }
+      ];
+    });
+
+    // API in background
     try {
       await API.post('/cart', {
         productId: product._id,
         quantity
       });
 
-      await fetchCart();
+      // IMPORTANT:
+      // No fetchCart() here.
+      // UI is already updated instantly.
     } catch (error) {
       console.error('Failed to add to cart:', error.response?.data?.message || error.message);
+
+      // Rollback if API fails
+      setCart(previousCart);
     }
   };
 
+  // ==========================================
+  // INCREASE QUANTITY - OPTIMISTIC
+  // ==========================================
   const increaseQuantity = async productId => {
+    const currentProduct = cart.find(item => item._id === productId);
+
+    if (!currentProduct) return;
+
+    const previousCart = cart;
+    const newQuantity = currentProduct.quantity + 1;
+
+    // UI FIRST
+    setCart(currentCart =>
+      currentCart.map(item =>
+        item._id === productId
+          ? {
+              ...item,
+              quantity: newQuantity
+            }
+          : item
+      )
+    );
+
+    // API in background
     try {
-      const currentProduct = cart.find(item => item._id === productId);
-
-      if (!currentProduct) return;
-
       await API.put(`/cart/${productId}`, {
-        quantity: currentProduct.quantity + 1
+        quantity: newQuantity
       });
-
-      setCart(previousCart =>
-        previousCart.map(item =>
-          item._id === productId
-            ? {
-                ...item,
-                quantity: item.quantity + 1
-              }
-            : item
-        )
-      );
     } catch (error) {
       console.error('Failed to increase quantity:', error.response?.data?.message || error.message);
+
+      // Rollback
+      setCart(previousCart);
     }
   };
 
+  // ==========================================
+  // DECREASE QUANTITY - OPTIMISTIC
+  // ==========================================
   const decreaseQuantity = async productId => {
-    try {
-      const currentProduct = cart.find(item => item._id === productId);
+    const currentProduct = cart.find(item => item._id === productId);
 
-      if (!currentProduct) return;
+    if (!currentProduct) return;
 
-      if (currentProduct.quantity === 1) {
+    const previousCart = cart;
+    const newQuantity = currentProduct.quantity - 1;
+
+    // If quantity becomes 0, remove immediately
+    if (newQuantity <= 0) {
+      setCart(currentCart => currentCart.filter(item => item._id !== productId));
+
+      try {
         await API.delete(`/cart/${productId}`);
+      } catch (error) {
+        console.error('Failed to remove item:', error.response?.data?.message || error.message);
 
-        setCart(previousCart => previousCart.filter(item => item._id !== productId));
-
-        return;
+        // Rollback
+        setCart(previousCart);
       }
 
-      await API.put(`/cart/${productId}`, {
-        quantity: currentProduct.quantity - 1
-      });
+      return;
+    }
 
-      setCart(previousCart =>
-        previousCart.map(item =>
-          item._id === productId
-            ? {
-                ...item,
-                quantity: item.quantity - 1
-              }
-            : item
-        )
-      );
+    // UI FIRST
+    setCart(currentCart =>
+      currentCart.map(item =>
+        item._id === productId
+          ? {
+              ...item,
+              quantity: newQuantity
+            }
+          : item
+      )
+    );
+
+    // API in background
+    try {
+      await API.put(`/cart/${productId}`, {
+        quantity: newQuantity
+      });
     } catch (error) {
       console.error('Failed to decrease quantity:', error.response?.data?.message || error.message);
+
+      // Rollback
+      setCart(previousCart);
     }
   };
 
+  // ==========================================
+  // REMOVE FROM CART - OPTIMISTIC
+  // ==========================================
   const removeFromCart = async productId => {
+    const previousCart = cart;
+
+    // UI FIRST
+    setCart(currentCart => currentCart.filter(item => item._id !== productId));
+
+    // API in background
     try {
       await API.delete(`/cart/${productId}`);
-
-      setCart(previousCart => previousCart.filter(item => item._id !== productId));
     } catch (error) {
       console.error('Failed to remove from cart:', error.response?.data?.message || error.message);
+
+      // Rollback
+      setCart(previousCart);
     }
   };
 
+  // ==========================================
+  // CLEAR CART
+  // ==========================================
   const clearCart = () => {
     setCart([]);
   };
